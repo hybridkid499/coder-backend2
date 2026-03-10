@@ -1,6 +1,7 @@
 import { Router } from "express";
 import passport from "passport";
 import { generateToken } from "../utils/jwt.js";
+import { currentSession, forgotPassword, resetPassword } from "../controllers/sessions.controller.js";
 
 const router = Router();
 
@@ -20,12 +21,13 @@ router.post("/login", (req, res, next) => {
     if (err) return next(err);
     if (!user) return res.status(401).json({ status: "error", message: info?.message || "Unauthorized" });
 
-    const token = generateToken({ id: user._id, role: user.role, email: user.email });
+    const token = generateToken(user);
 
     res.cookie("access_token", token, {
       httpOnly: true,
-      
       sameSite: "lax",
+      secure: false,
+      path: "/",
     });
 
     return res.json({ status: "success", token });
@@ -33,12 +35,14 @@ router.post("/login", (req, res, next) => {
 });
 
 
+
+
 router.get(
   "/current",
   passport.authenticate("current", { session: false }),
-  (req, res) => {
-    return res.json({ status: "success", user: req.user });
-  }
+  currentSession
 );
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 export default router;

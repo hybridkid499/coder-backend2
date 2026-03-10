@@ -1,9 +1,9 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Strategy as JwtStrategy } from "passport-jwt";
+import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
 
-import { UserModel } from "../models/user.model.js";
-import { CartModel } from "../models/cart.model.js";
+import User from "../models/user.model.js";
+import Cart from "../models/cart.model.js";
 import { createHash, isValidPassword } from "../utils/hash.js";
 
 const cookieExtractor = (req) => {
@@ -20,12 +20,12 @@ export const initializePassport = () => {
         try {
           const { first_name, last_name, age } = req.body;
 
-          const exists = await UserModel.findOne({ email });
+          const exists = await User.findOne({ email });
           if (exists) return done(null, false, { message: "Email already registered" });
 
-          const newCart = await CartModel.create({ products: [] });
+          const newCart = await Cart.create({ products: [] });
 
-          const user = await UserModel.create({
+          const user = await User.create({
             first_name,
             last_name,
             email,
@@ -48,7 +48,7 @@ export const initializePassport = () => {
     "login",
     new LocalStrategy({ usernameField: "email" }, async (email, password, done) => {
       try {
-        const user = await UserModel.findOne({ email });
+        const user = await User.findOne({ email });
         if (!user) return done(null, false, { message: "User not found" });
 
         if (!isValidPassword(password, user.password)) {
@@ -63,24 +63,27 @@ export const initializePassport = () => {
   );
 
   
-  passport.use(
-    "current",
-    new JwtStrategy(
-      {
-        jwtFromRequest: cookieExtractor,
-        secretOrKey: process.env.JWT_SECRET,
-      },
-      async (jwtPayload, done) => {
-        try {
-          const user = await UserModel.findById(jwtPayload.id).lean();
-          if (!user) return done(null, false);
+passport.use(
+  "current",
+  new JwtStrategy(
+    {
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        cookieExtractor,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
+      secretOrKey: process.env.JWT_SECRET,
+    },
+    async (jwtPayload, done) => {
+      try {
+        const user = await User.findById(jwtPayload.id).lean();
+        if (!user) return done(null, false);
 
-          delete user.password;
-          return done(null, user);
-        } catch (err) {
-          return done(err, false);
-        }
+        delete user.password;
+        return done(null, user);
+      } catch (err) {
+        return done(err, false);
       }
-    )
-  );
+    }
+  )
+);
 };
