@@ -1,4 +1,5 @@
 import passport from "passport";
+import mongoose from "mongoose";
 import { Strategy as LocalStrategy } from "passport-local";
 import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
 
@@ -17,27 +18,31 @@ export const initializePassport = () => {
     new LocalStrategy(
       { usernameField: "email", passReqToCallback: true },
       async (req, email, password, done) => {
+        const session = await mongoose.startSession();
         try {
+          session.startTransaction();
+
           const { first_name, last_name, age } = req.body;
 
-          const exists = await User.findOne({ email });
-          if (exists) return done(null, false, { message: "Email already registered" });
+          const exists = await User.findOne({ email }).session(session);
+          if (exists) {
+            await session.abortTransaction();
+            return done(null, false, { message: "Email already registered" });
+          }
 
-          const newCart = await Cart.create({ products: [] });
+          const [newCart] = await Cart.create([{ products: [] }], { session });
+          const [user] = await User.create(
+            [{ first_name, last_name, email, age, password: createHash(password), cart: newCart._id, role: "user" }],
+            { session }
+          );
 
-          const user = await User.create({
-            first_name,
-            last_name,
-            email,
-            age,
-            password: createHash(password), // hashSync
-            cart: newCart._id,
-            role: "user",
-          });
-
+          await session.commitTransaction();
           return done(null, user);
         } catch (err) {
+          await session.abortTransaction();
           return done(err);
+        } finally {
+          session.endSession();
         }
       }
     )

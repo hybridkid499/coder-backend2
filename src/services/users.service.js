@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import nodemailer from "nodemailer";
 import { createTransport } from "../config/mailer.js";
 import { createHash, isValidPassword } from "../utils/hash.js";
 
@@ -23,34 +24,37 @@ export default class UsersService {
    
 
   async sendPasswordReset(email) {
-  const user = await this.repository.getUserByEmail(email);
-  if (!user) throw new Error("User not found");
+    const user = await this.repository.getUserByEmail(email);
+    if (!user) return { previewUrl: null };
 
-  const token = crypto.randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 60 * 60 * 1000);
 
-  await this.repository.saveResetToken(user._id, token, expires);
+    await this.repository.saveResetToken(user._id, token, expires);
 
-  const resetLink = `${process.env.RESET_BASE_URL}/reset-password?token=${token}`;
+    const resetLink = `${process.env.RESET_BASE_URL}/reset-password?token=${token}`;
+    const transporter = await createTransport();
 
-  const transporter = await createTransport();
+    const info = await transporter.sendMail({
+      from: process.env.MAIL_FROM || "no-reply@ecommerce.com",
+      to: user.email,
+      subject: "Password reset",
+      html: `
+        <h2>Recuperación de contraseña</h2>
+        <p>Hacé click en el botón para restablecer tu contraseña:</p>
+        <a href="${resetLink}" style="display:inline-block;padding:10px 16px;background:#222;color:#fff;text-decoration:none;border-radius:6px;">
+          Restablecer contraseña
+        </a>
+        <p>Este enlace expira en 1 hora.</p>
+      `,
+    });
 
-  const info = await transporter.sendMail({
-    from: process.env.MAIL_FROM || "no-reply@ecommerce.com",
-    to: user.email,
-    subject: "Password reset",
-    html: `
-      <h2>Recuperación de contraseña</h2>
-      <p>Hacé click en el botón para restablecer tu contraseña:</p>
-      <a href="${resetLink}" style="display:inline-block;padding:10px 16px;background:#222;color:#fff;text-decoration:none;border-radius:6px;">
-        Restablecer contraseña
-      </a>
-      <p>Este enlace expira en 1 hora.</p>
-    `,
-  });
+    const previewUrl = process.env.NODE_ENV !== "production"
+      ? nodemailer.getTestMessageUrl(info)
+      : null;
 
-  return info;
-}
+    return { previewUrl };
+  }
 
 async resetPassword(token, newPassword) {
   const user = await this.repository.getByResetToken(token);

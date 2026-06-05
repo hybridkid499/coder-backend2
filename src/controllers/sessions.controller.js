@@ -1,6 +1,5 @@
 import { UserCurrentDTO } from "../dto/user.current.dto.js";
 import { usersService } from "../repositories/index.js";
-import nodemailer from "nodemailer";
 
 export const currentSession = (req, res) => {
   // req.user viene de passport current
@@ -11,14 +10,12 @@ export const currentSession = (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const info = await usersService.sendPasswordReset(email);
-
-    const previewUrl = nodemailer.getTestMessageUrl(info);
+    const { previewUrl } = await usersService.sendPasswordReset(email);
 
     return res.json({
       status: "success",
-      message: "Recovery email sent",
-      previewUrl: previewUrl || null,
+      message: "If that email exists, a recovery link was sent",
+      ...(previewUrl && { previewUrl }),
     });
   } catch (err) {
     return res.status(400).json({

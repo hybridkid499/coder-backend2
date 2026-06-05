@@ -20,6 +20,7 @@ export default class CartsService {
 
     const product = await Product.findById(pid);
     if (!product) throw new Error("Product not found");
+    if (product.stock < qty) throw new Error(`Insufficient stock (available: ${product.stock})`);
 
     const index = cartDoc.products.findIndex((p) => p.product.toString() === pid);
 
@@ -46,19 +47,18 @@ export default class CartsService {
       const product = item.product;
       const quantity = item.quantity;
 
-      if (product.stock >= quantity) {
+      const updated = await Product.findOneAndUpdate(
+        { _id: product._id, stock: { $gte: quantity } },
+        { $inc: { stock: -quantity } },
+        { new: true }
+      );
+
+      if (updated) {
         purchasable.push({ product, quantity });
         totalAmount += product.price * quantity;
       } else {
         notPurchasable.push({ product, quantity });
       }
-    }
-
-    // descontar stock solo de los comprables
-    for (const item of purchasable) {
-      await Product.findByIdAndUpdate(item.product._id, {
-        $inc: { stock: -item.quantity },
-      });
     }
 
     // generar ticket si hubo compra

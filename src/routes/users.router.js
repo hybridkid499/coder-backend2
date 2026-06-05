@@ -11,9 +11,13 @@ router.get(
   "/",
   passport.authenticate("current", { session: false }),
   authorize("admin"),
-  async (req, res) => {
-    const users = await User.find().select("-password").lean();
-    res.json({ status: "success", users });
+  async (req, res, next) => {
+    try {
+      const users = await User.find().select("-password").lean();
+      res.json({ status: "success", users });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 
@@ -21,54 +25,82 @@ router.get(
 router.get(
   "/:uid",
   passport.authenticate("current", { session: false }),
-  async (req, res) => {
-    const user = await User.findById(req.params.uid).select("-password").lean();
-    if (!user) return res.status(404).json({ status: "error", message: "User not found" });
-    res.json({ status: "success", user });
+  async (req, res, next) => {
+    try {
+      const user = await User.findById(req.params.uid).select("-password").lean();
+      if (!user) return res.status(404).json({ status: "error", message: "User not found" });
+      res.json({ status: "success", user });
+    } catch (err) {
+      next(err);
+    }
   }
 );
 
- 
-router.post("/", async (req, res) => {
-  const { first_name, last_name, email, age, password, cart, role } = req.body;
 
-  const exists = await User.findOne({ email });
-  if (exists) return res.status(400).json({ status: "error", message: "Email already exists" });
+router.post(
+  "/",
+  passport.authenticate("current", { session: false }),
+  authorize("admin"),
+  async (req, res, next) => {
+    try {
+      const { first_name, last_name, email, age, password, role } = req.body;
 
-  const user = await User.create({
-    first_name,
-    last_name,
-    email,
-    age,
-    password: createHash(password), // hashSync
-    cart,
-    role: role || "user",
-  });
+      const exists = await User.findOne({ email });
+      if (exists) return res.status(400).json({ status: "error", message: "Email already exists" });
 
-  res.status(201).json({ status: "success", user: { ...user.toObject(), password: undefined } });
-});
+      const user = await User.create({
+        first_name,
+        last_name,
+        email,
+        age,
+        password: createHash(password),
+        role: role || "user",
+      });
 
-
-router.put("/:uid", async (req, res) => {
-  const payload = { ...req.body };
-
-  
-  if (payload.password) payload.password = createHash(payload.password);
-
-  const updated = await User.findByIdAndUpdate(req.params.uid, payload, { new: true })
-    .select("-password")
-    .lean();
-
-  if (!updated) return res.status(404).json({ status: "error", message: "User not found" });
-  res.json({ status: "success", user: updated });
-});
+      res.status(201).json({ status: "success", user: { ...user.toObject(), password: undefined } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 
-router.delete("/:uid", async (req, res) => {
-  const deleted = await User.findByIdAndDelete(req.params.uid).lean();
-  if (!deleted) return res.status(404).json({ status: "error", message: "User not found" });
+router.put(
+  "/:uid",
+  passport.authenticate("current", { session: false }),
+  async (req, res, next) => {
+    try {
+      const payload = { ...req.body };
+      if (req.user.role !== "admin") delete payload.role;
+      if (payload.password) payload.password = createHash(payload.password);
 
-  res.json({ status: "success", message: "User deleted" });
-});
+      const updated = await User.findByIdAndUpdate(req.params.uid, payload, { new: true })
+        .select("-password")
+        .lean();
+
+      if (!updated) return res.status(404).json({ status: "error", message: "User not found" });
+      res.json({ status: "success", user: updated });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+
+router.delete(
+  "/:uid",
+  passport.authenticate("current", { session: false }),
+  authorize("admin"),
+  async (req, res, next) => {
+    try {
+      const deleted = await User.findByIdAndDelete(req.params.uid).lean();
+      if (!deleted) return res.status(404).json({ status: "error", message: "User not found" });
+
+      res.json({ status: "success", message: "User deleted" });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 export default router;

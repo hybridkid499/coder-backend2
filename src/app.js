@@ -26,6 +26,18 @@ app.use("/api", router);
 
 app.get("/", (req, res) => res.send("OK - Backend2 Ecommerce"));
 
+app.use((req, res) => {
+  res.status(404).json({ status: "error", message: "Not found" });
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({
+    status: "error",
+    message: err.message || "Internal server error",
+  });
+});
+
 const PORT = process.env.PORT || 8080;
 
 const start = async () => {

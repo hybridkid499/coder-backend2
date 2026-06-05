@@ -26,8 +26,8 @@ export const purchaseCart = async (req, res) => {
     const { cid } = req.params;
     const purchaserEmail = req.user.email;
 
-    const result = await cartsService.purchase(cid, purchaserEmail);
-    res.json({ status: "success", ...result });
+    const { ticket, notPurchased } = await cartsService.purchase(cid, purchaserEmail);
+    res.json({ status: "success", ticket, notPurchased });
   } catch (err) {
     res.status(400).json({ status: "error", message: err.message });
   }
